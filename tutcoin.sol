@@ -208,15 +208,19 @@ contract TutorCoin is StandardToken {
         if (msg.sender == question.student || question.numUpvotes == maxUpvotes) {
             return false;
         } else {
-            reward = calculateReward(_question_id, question.askTime);
-            balances[question.student] += reward;
-            balances[pendingRewards] -= reward;
-
             // Increment upvotes
             questions[_question_id].numUpvotes += 1;
 
-            // Transfer reward to student
-            Transfer(pendingRewards, question.student, reward);
+            // Only send the student rewards if they have a positive number of upvotes.
+            if (question.numUpvotes >= 0) {
+                reward = calculateReward(_question_id, question.askTime);
+                balances[question.student] += reward;
+                balances[pendingRewards] -= reward;
+
+                // Transfer reward to student
+                Transfer(pendingRewards, question.student, reward);
+            }
+
             return true;
         }
     }
