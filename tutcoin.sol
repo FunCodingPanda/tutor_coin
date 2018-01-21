@@ -199,6 +199,7 @@ contract TutorCoin is StandardToken {
     function upvoteAnswer(uint _answer_id) returns (bool success) {
         // Subtract balance from pendingRewards
         // Add balance to tutor who answered
+
     }
 
     function upvoteQuestion(uint _question_id) returns (bool success) {
@@ -228,6 +229,28 @@ contract TutorCoin is StandardToken {
     function downvoteQuestion(uint _question_id) returns (bool success) {
         // Subtract balance from student (but ensure > 0)
         // Add balance back to pendingRewards
+
+        Question question = questions[_question_id];
+        reward = calculateReward(_question_id, question.askTime);
+
+        if(msg.sender == question.student) {
+          return false;
+        } else if (reward < balances[question.student]) {
+
+          balances[question.student] -= reward;
+          balances[pendingRewards] += reward;
+
+          // Transfer reward to pendingRewards
+          Transfer(question.student, pendingRewards, reward);
+        } else {
+          balances[question.student] = 0;
+          balances[pendingRewards] += balances[question.student];
+          Transfer(question.student, pendingRewards, balances[question.student]);
+        }
+
+        // Decrement upvotes
+        questions[_question_id].numUpvotes -= 1;
+        return true;
     }
 
     function acceptAnswer(uint _question_id, uint _answer_id) returns (bool success) {
