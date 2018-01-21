@@ -35,11 +35,13 @@ contract TutorCoin is StandardToken {
         uint askTime;
         uint256 bounty;
         uint256 totalReward;
+        int numUpvotes;
     }
 
     struct Answer {
         string contents;
         address tutor;
+        int numUpvotes;
     }
 
     /**
@@ -70,7 +72,7 @@ contract TutorCoin is StandardToken {
      * ------------------------------
      */
 
-    function ERC20Token(
+    function TutorCoin(
         ) {
         totalSupply = 1000000000;
         name = "Tutor Coin";
@@ -156,30 +158,36 @@ contract TutorCoin is StandardToken {
                 student: msg.sender,
                 askTime: now,
                 bounty: _bounty,
-                totalReward: total_reward
+                totalReward: total_reward,
+                numUpvotes: 0
             }));
 
+            // Student gets an initial reward
+            uint256 initial_reward = calculateReward(len(questions) - 1, now);
+
             // Set up rewards
+            balances[msg.sender] += initial_reward;
             balances[msg.sender] -= _bounty;
             balances[master] -= total_reward;
-            balances[pendingRewards] += total_reward + _bounty;
+            balances[pendingRewards] += total_reward + _bounty - initial_reward;
 
             // Publish events
-            Transfer(msg.sender, pendingRewards, _bounty);
             Transfer(master, pendingRewards, total_reward);
+            Transfer(msg.sender, pendingRewards, _bounty);
+            Transfer(pendingRewards, msg.sender, initial_reward);
             return true;
         } else {
             return false;
         }
     }
 
-    function calculateReward(uint _question_id, uint _num_upvotes) {
+    function calculateReward(uint _question_id, uint _time) {
         Question question = questions[_question_id];
         uint rTotal = question.totalReward;
         uint rMax = rTotal / (maxAnswers + 1);
-        uint timeSinceAsked = now - question.askTime;
+        uint timeSinceAsked = _time - question.askTime;
         uint timeFactor = 1 / (1 + timeSinceAsked);
-        uint upvoteFactor = (_num_upvotes + 1) / (maxUpvotes + 1)
+        uint upvoteFactor = 1 / (1 + maxUpvotes);
         return rMax * timeFactor * upvoteFactor;
     }
 
@@ -194,8 +202,22 @@ contract TutorCoin is StandardToken {
     }
 
     function upvoteQuestion(uint _question_id) returns (bool success) {
-        // Subtract balance from pendingRewards
-        // Add balance to student who asked
+        Question question = questions[_question_id];
+        // Ensure students can't upvote themselves
+        if (msg.sender == question.student || question.numUpvotes == maxUpvotes) {
+            return false;
+        } else {
+            reward = calculateReward(_question_id, question.askTime);
+            balances[question.student] += reward;
+            balances[pendingRewards] -= reward;
+
+            // Increment upvotes
+            questions[_question_id].numUpvotes += 1;
+
+            // Transfer reward to student
+            Transfer(pendingRewards, question.student, reward);
+            return true;
+        }
     }
 
     function downvoteAnswer(uint _answer_id) returns (bool success) {
